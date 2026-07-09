@@ -24,7 +24,7 @@ int clock_gettime(clockid_t, struct timespec *);
 #include <time.h>
 
 #include "opendroneid.h"
-#include "odid_wifi.h"
+#include "wifi.h"
 
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
 #define cpu_to_le16(x)  (x)
