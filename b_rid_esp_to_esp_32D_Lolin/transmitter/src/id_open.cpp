@@ -67,6 +67,7 @@
 #pragma GCC diagnostic warning "-Wunused-variable"
 
 #include <Arduino.h>
+#include <WiFi.h>
 #include <sys/time.h>
 #include "esp_mac.h"
 
