@@ -70,14 +70,14 @@
 #include <WiFi.h>
 #include <sys/time.h>
 #include "esp_mac.h"
+#include "esp_wifi.h"
 
 #include "id_open.h"
 
 #if ID_OD_WIFI
 
-#include <WiFi.h>
-
 #include <esp_system.h>
+
 
 extern "C" {
 #include <esp_wifi.h>
