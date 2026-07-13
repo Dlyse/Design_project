@@ -22,12 +22,12 @@ void setup() {
   
   memset(&utm_data,0,sizeof(utm_data));
 
-  utm_data.base_latitude  = 24.4366767;
-  utm_data.base_longitude = 54.6139099;
+  utm_data.base_latitude  = 1.0;
+  utm_data.base_longitude = 1.0;//54.6139099
   utm_data.base_alt_m     = 150.0;
 
-  utm_data.latitude_d  = 24.4366767;
-  utm_data.longitude_d = 54.6139099;
+  utm_data.latitude_d  = 25;
+  utm_data.longitude_d = 55.5;
   utm_data.alt_msl_m   = 200.0;
 
   utm_data.satellites = 8;

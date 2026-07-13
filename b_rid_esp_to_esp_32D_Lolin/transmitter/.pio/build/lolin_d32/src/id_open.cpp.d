@@ -194,10 +194,10 @@
  C:/Users/LHY00/.platformio/packages/framework-arduinoespressif32/libraries/WiFi/src/WiFiUdp.h \
  C:/Users/LHY00/.platformio/packages/framework-arduinoespressif32/cores/esp32/Udp.h \
  C:/Users/LHY00/.platformio/packages/framework-arduinoespressif32/cores/esp32/cbuf.h \
- include/id_open.h include/utm.h include/opendroneid.h \
  C:/Users/LHY00/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/esp_wifi/include/esp_wifi.h \
  C:/Users/LHY00/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/esp_wifi/include/esp_wifi_types.h \
  C:/Users/LHY00/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/esp_wifi/include/esp_private/esp_wifi_private.h \
  C:/Users/LHY00/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/esp_wifi/include/esp_wifi_crypto_types.h \
  C:/Users/LHY00/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/esp_wifi/include/esp_private/wifi_os_adapter.h \
- C:/Users/LHY00/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/esp_wifi/include/esp_wifi_default.h
+ C:/Users/LHY00/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/esp_wifi/include/esp_wifi_default.h \
+ include/id_open.h include/utm.h include/opendroneid.h
