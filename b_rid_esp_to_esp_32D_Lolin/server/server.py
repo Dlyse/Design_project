@@ -37,7 +37,7 @@ DASHBOARD = """
   </style>
 </head>
 <body>
-  <h1>NP Drone Monitor</h1>
+  <h1>Drone Status</h1>
   <div class="card">
     <div class="field"><span class="label">Drone ID:</span> {{ data.id }}</div>
     <div class="field"><span class="label">Latitude:</span> {{ data.lat }}</div>
