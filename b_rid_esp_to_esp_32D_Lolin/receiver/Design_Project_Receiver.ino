@@ -35,34 +35,34 @@ void sniffer_callback(void* buf, wifi_promiscuous_pkt_type_t type) {
       
       Serial.println("___B-RID PACKET DETECTED___");
 
-      // The OpenDroneID payload starts 4 bytes after the OUI
+      // The OpenDroneID payload starts 5 bytes after the OUI
       // (OUI = 3 bytes; OUI type = 1 byte; then message pack)
-      uint8_t* odid_payload = &payload[i + 4];
+      uint8_t* odid_payload = &payload[i + 5];
 
       // Clear previous data then decode
       odid_initUasData(&uas_data);
       ODID_MessagePack_encoded* pack = (ODID_MessagePack_encoded*) odid_payload;
       int result = decodeMessagePack(&uas_data, pack);
 
-      if (result == ODID_SUCCESS)
+      if (result == ODID_SUCCESS && uas_data.LocationValid == 1)
       {
-        // Build JSON from decoded fields
+        // Build JSON from decoded packets
         Serial.print("{\"id\":\"");
-        Serial.print(uas_data.BasicID[0].UASID);
+        Serial.print(uas_data.OperatorID.OperatorId);
         Serial.print("\"");
         Serial.print(",\"lat\":");
         Serial.print(uas_data.Location.Latitude, 7);
         Serial.print(",\"lon\":");
         Serial.print(uas_data.Location.Longitude, 7);
         Serial.print(",\"alt\":");
-        Serial.print(uas_data.Location.AltitudeBaro);
+        Serial.print(uas_data.Location.AltitudeGeo);
         Serial.print(",\"rssi\":");
         Serial.print(pkt->rx_ctrl.rssi);
         Serial.println("}");
       }
       else
       {
-        Serial.println("Decode failed");
+        Serial.println("Decode failed/Non-essential packet");
       }
     }
   }
