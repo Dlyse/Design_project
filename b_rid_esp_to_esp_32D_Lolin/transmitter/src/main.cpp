@@ -39,6 +39,6 @@ void setup() {
 void loop() {
 
   squitter.transmit(&utm_data);
-
+  printf("Transmitting UTM data...\n");
   return;
 }
