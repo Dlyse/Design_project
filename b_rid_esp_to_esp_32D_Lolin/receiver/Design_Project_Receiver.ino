@@ -1,6 +1,10 @@
 #include "esp_wifi.h"
 #include "esp_event.h"
 #include "nvs_flash.h"
+#include "src/opendroneid.h"
+
+// for data struct
+ODID_UAS_Data uas_data;
 
 // This callback is called by the ESP32's Wi-Fi Driver every time a packet is captured
 void sniffer_callback(void* buf, wifi_promiscuous_pkt_type_t type) {
@@ -30,23 +34,45 @@ void sniffer_callback(void* buf, wifi_promiscuous_pkt_type_t type) {
         payload[i+2] == 0xBC) {
       
       Serial.println("___B-RID PACKET DETECTED___");
-      
-      // JSON output for Flask
-      Serial.print("{\"id\":\"SG-NP-001\"");
-      Serial.print(",\"lat\":1.3330");
-      Serial.print(",\"lon\":103.7757");
-      Serial.print(",\"alt\":30");
-      Serial.print(",\"rssi\":");
-      Serial.print(pkt->rx_ctrl.rssi);
-      Serial.println("}");
-      Serial.println();
-      return;
+
+      // The OpenDroneID payload starts 4 bytes after the OUI
+      // (OUI = 3 bytes; OUI type = 1 byte; then message pack)
+      uint8_t* odid_payload = &payload[i + 4];
+
+      // Clear previous data then decode
+      odid_initUasData(&uas_data);
+      ODID_MessagePack_encoded* pack = (ODID_MessagePack_encoded*) odid_payload;
+      int result = decodeMessagePack(&uas_data, pack);
+
+      if (result == ODID_SUCCESS)
+      {
+        // Build JSON from decoded fields
+        Serial.print("{\"id\":\"");
+        Serial.print(uas_data.BasicID[0].UASID);
+        Serial.print("\"");
+        Serial.print(",\"lat\":");
+        Serial.print(uas_data.Location.Latitude, 7);
+        Serial.print(",\"lon\":");
+        Serial.print(uas_data.Location.Longitude, 7);
+        Serial.print(",\"alt\":");
+        Serial.print(uas_data.Location.AltitudeBaro);
+        Serial.print(",\"rssi\":");
+        Serial.print(pkt->rx_ctrl.rssi);
+        Serial.println("}");
+      }
+      else
+      {
+        Serial.println("Decode failed");
+      }
     }
   }
 }
 
 void setup() {
   Serial.begin(115200);
+
+  // struct for data
+  odid_initUasData(&uas_data);
 
   // initialising: Internal ESP32 Flash Memory, Network Interfaces, and Event Loop for background tasks
   nvs_flash_init();
