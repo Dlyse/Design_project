@@ -1,7 +1,5 @@
-import serial                                               # allows data reading from ESP32 via USB
-import json                                                 # parses JSON strings into dictionaries
-import threading                                            # lets Serial reader and web server run simultaneously
-from flask import Flask, jsonify, render_template_string    # Flask is the web framework, jsonify converts dicts to JSON response, render_template_string allows direct HTML writing in the python file
+import json                                                         # parses JSON strings into dictionaries
+from flask import Flask, jsonify, render_template_string, request   # Flask is the web framework, jsonify converts dicts to JSON response, render_template_string allows direct HTML writing in the python file
 
 app = Flask(__name__)
 
@@ -43,7 +41,6 @@ DASHBOARD = """
     <div class="field"><span class="label">Longitude:</span> {{ data.lon }}</div>
     <div class="field"><span class="label">Altitude:</span> {{ data.alt }} m</div>
     <div class="field"><span class="label">RSSI:</span> {{ data.rssi }} dBm</div>
-    <div class="field"><span class="label">Last Seen:</span> {{ data.last_seen }}</div>
   </div>
 </body>
 </html>
