@@ -2,9 +2,61 @@
 #include "esp_event.h"
 #include "nvs_flash.h"
 #include "src/opendroneid.h"
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include <WiFiClientSecure.h>
+
+// config for wifi/server stuff
+const char* WIFI_SSID  = "placehodler";
+const char* WIFI_PASS  = "placehodler";
+const char* SERVER_URL = "https://web-production-4b179.up.railway.app/post";
 
 // for data struct
 ODID_UAS_Data uas_data;
+String latest_json_data = "";      // buffer to hold latest set of data
+bool new_data = false;             // flag that triggers upload to server
+
+// this function uploads data to the Railway server
+void upload_data() {
+
+  // turns off sniffing to connect to Wi-Fi for uploading
+  esp_wifi_set_promiscuous(false);
+
+  // attempts to connect to Wi-Fi, gives up after 20 attempts
+  WiFi.begin(WIFI_SSID, WIFI_PASS);
+  int attempts = 0;
+  while (WiFi.status() != WL_CONNECTED && attempts < 20)
+  {
+    delay(100);
+    attempts++;
+  }
+
+  // creates a HTTP Client, points towards the Railway URL
+  // sends JSON string as POST request
+  // prints response code for debugging (it should be '200' as per the server.py code)
+  if (WiFi.status() == WL_CONNECTED)
+  {
+    WiFiClientSecure client;
+    client.setInsecure();
+    HTTPClient http;
+    http.begin(client, SERVER_URL);
+    
+    http.addHeader("Content-Type", "application/json");
+    int responseCode = http.POST(latest_json_data);
+    Serial.print("POST response: ");
+    Serial.println(responseCode);
+    http.end();
+  }
+  else
+  {
+    Serial.println("Wi-Fi connection failed");
+  }
+
+  // disconnects from wifi, goes back to regular B-RID sniffing
+  WiFi.disconnect(true);
+  esp_wifi_set_channel(6, WIFI_SECOND_CHAN_NONE);
+  esp_wifi_set_promiscuous(true);
+}
 
 // This callback is called by the ESP32's Wi-Fi Driver every time a packet is captured
 void sniffer_callback(void* buf, wifi_promiscuous_pkt_type_t type) {
@@ -47,18 +99,13 @@ void sniffer_callback(void* buf, wifi_promiscuous_pkt_type_t type) {
       if (result == ODID_SUCCESS && uas_data.LocationValid == 1)
       {
         // Build JSON from decoded packets
-        Serial.print("{\"id\":\"");
-        Serial.print(uas_data.OperatorID.OperatorId);
-        Serial.print("\"");
-        Serial.print(",\"lat\":");
-        Serial.print(uas_data.Location.Latitude, 7);
-        Serial.print(",\"lon\":");
-        Serial.print(uas_data.Location.Longitude, 7);
-        Serial.print(",\"alt\":");
-        Serial.print(uas_data.Location.AltitudeGeo);
-        Serial.print(",\"rssi\":");
-        Serial.print(pkt->rx_ctrl.rssi);
-        Serial.println("}");
+        latest_json_data  = "{\"id\":\"" + String(uas_data.OperatorID.OperatorId) + "\"";
+        latest_json_data += ",\"lat\":"  + String(uas_data.Location.Latitude, 7);
+        latest_json_data += ",\"lon\":"  + String(uas_data.Location.Longitude, 7);
+        latest_json_data += ",\"alt\":"  + String(uas_data.Location.AltitudeGeo);
+        latest_json_data += ",\"rssi\":" + String(pkt->rx_ctrl.rssi) + "}";
+        new_data = true;
+        Serial.println("Data buffered: " + latest_json_data);
       }
       else
       {
@@ -100,7 +147,13 @@ void setup() {
 }
 
 void loop() {
-  // placeholder for serial monitor just so i know the board ain't dead ykyk
-  // Serial.println("nothing here cuz no B-RID yet, don't worry");
-  delay(1000);
+  
+  // if any new data is detected, upload to server
+  if (new_data)
+  {
+    new_data = false;
+    upload_data();
+  }
+
+  delay(100);
 }
