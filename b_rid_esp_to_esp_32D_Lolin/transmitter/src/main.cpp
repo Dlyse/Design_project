@@ -38,7 +38,7 @@ void setup() {
   utm_data.base_longitude = 0.0;//
   utm_data.base_alt_m     = 0.0;
 
-  utm_data.latitude_d  = 1-0.0;//1.342615
+  utm_data.latitude_d  = 0.0;//1.342615
   utm_data.longitude_d = 0.0;//103.717382
   utm_data.alt_msl_m   = 0.0; //mean sea lvl
 
@@ -51,7 +51,8 @@ void setup() {
 }
 
 void loop() {
-  while (gpsSerial.available() > 0) {
+
+while (gpsSerial.available() > 0) {
   gps.encode(gpsSerial.read());
 }
 
@@ -93,6 +94,14 @@ if (gps.location.isValid() && gps.location.age() < 2000) {
   // Height above take-off point
   utm_data.alt_agl_m =
       utm_data.alt_msl_m - utm_data.base_alt_m;
+Serial.print("Satellites: ");
+Serial.println(utm_data.satellites);
+
+Serial.print("Latitude: ");
+Serial.println(utm_data.latitude_d, 6);
+
+Serial.print("Longitude: ");
+Serial.println(utm_data.longitude_d, 6);
 
 } else {
   // Prevent an invalid location from being transmitted
@@ -100,4 +109,5 @@ if (gps.location.isValid() && gps.location.age() < 2000) {
 }
 
 squitter.transmit(&utm_data);
+
 }
