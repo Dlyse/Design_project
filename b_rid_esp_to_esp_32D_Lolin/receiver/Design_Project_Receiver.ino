@@ -7,8 +7,8 @@
 #include <WiFiClientSecure.h>
 
 // config for wifi/server stuff
-const char* WIFI_SSID  = "placehodler";
-const char* WIFI_PASS  = "placehodler";
+const char* WIFI_SSID  = "Rafael's iPhone";
+const char* WIFI_PASS  = "joinhereNOW";
 const char* SERVER_URL = "https://web-production-4b179.up.railway.app/post";
 
 // for data struct
