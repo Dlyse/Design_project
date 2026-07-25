@@ -136,5 +136,4 @@ if (millis() - lastDebug >= 1000) {
   }
 
   squitter.transmit(&utm_data);
-  
 }
