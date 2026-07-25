@@ -52,62 +52,89 @@ void setup() {
 
 void loop() {
 
-while (gpsSerial.available() > 0) {
-  gps.encode(gpsSerial.read());
+
+  while (gpsSerial.available() > 0) {
+    char c = gpsSerial.read();
+    Serial.write(c);
+    gps.encode(c);
+  }
+  static unsigned long lastDebug = 0;
+
+if (millis() - lastDebug >= 1000) {
+  lastDebug = millis();
+
+  Serial.print("Characters received: ");
+  Serial.println(gps.charsProcessed());
+
+  Serial.print("Location valid: ");
+  Serial.println(gps.location.isValid());
+
+  Serial.print("Location age: ");
+  Serial.println(gps.location.age());
+
+  Serial.print("Satellites valid: ");
+  Serial.println(gps.satellites.isValid());
+
+  Serial.print("Satellites: ");
+  Serial.println(gps.satellites.value());
+
+  Serial.println("----------------");
 }
 
-if (gps.location.isValid() && gps.location.age() < 2000) {
 
-  utm_data.latitude_d = gps.location.lat();
-  utm_data.longitude_d = gps.location.lng();
 
-  if (gps.satellites.isValid()) {
-    utm_data.satellites = gps.satellites.value();
+  if (gps.location.isValid() && gps.location.age() < 2000) {
+
+    utm_data.latitude_d = gps.location.lat();
+    utm_data.longitude_d = gps.location.lng();
+
+    if (gps.satellites.isValid()) {
+      utm_data.satellites = gps.satellites.value();
+    }
+
+    if (gps.altitude.isValid()) {
+      utm_data.alt_msl_m = gps.altitude.meters();
+    }
+
+    if (gps.speed.isValid()) {
+      utm_data.speed_kn = round(gps.speed.knots());
+    }
+
+    if (gps.course.isValid()) {
+      utm_data.heading = round(gps.course.deg());
+    }
+
+    if (gps.time.isValid()) {
+      utm_data.minutes = gps.time.minute();
+      utm_data.seconds = gps.time.second();
+      utm_data.csecs = gps.time.centisecond();
+    }
+
+    // Save the first valid GPS position as the take-off location
+    if (!utm_data.base_valid) {
+      utm_data.base_latitude = utm_data.latitude_d;
+      utm_data.base_longitude = utm_data.longitude_d;
+      utm_data.base_alt_m = utm_data.alt_msl_m;
+      utm_data.base_valid = 1;
+    }
+
+    // Height above take-off point
+    utm_data.alt_agl_m =
+        utm_data.alt_msl_m - utm_data.base_alt_m;
+  Serial.print("Satellites: ");
+  Serial.println(utm_data.satellites);
+
+  Serial.print("Latitude: ");
+  Serial.println(utm_data.latitude_d, 6);
+
+  Serial.print("Longitude: ");
+  Serial.println(utm_data.longitude_d, 6);
+
+  } else {
+    // Prevent an invalid location from being transmitted
+    utm_data.satellites = 0;
   }
 
-  if (gps.altitude.isValid()) {
-    utm_data.alt_msl_m = gps.altitude.meters();
-  }
-
-  if (gps.speed.isValid()) {
-    utm_data.speed_kn = round(gps.speed.knots());
-  }
-
-  if (gps.course.isValid()) {
-    utm_data.heading = round(gps.course.deg());
-  }
-
-  if (gps.time.isValid()) {
-    utm_data.minutes = gps.time.minute();
-    utm_data.seconds = gps.time.second();
-    utm_data.csecs = gps.time.centisecond();
-  }
-
-  // Save the first valid GPS position as the take-off location
-  if (!utm_data.base_valid) {
-    utm_data.base_latitude = utm_data.latitude_d;
-    utm_data.base_longitude = utm_data.longitude_d;
-    utm_data.base_alt_m = utm_data.alt_msl_m;
-    utm_data.base_valid = 1;
-  }
-
-  // Height above take-off point
-  utm_data.alt_agl_m =
-      utm_data.alt_msl_m - utm_data.base_alt_m;
-Serial.print("Satellites: ");
-Serial.println(utm_data.satellites);
-
-Serial.print("Latitude: ");
-Serial.println(utm_data.latitude_d, 6);
-
-Serial.print("Longitude: ");
-Serial.println(utm_data.longitude_d, 6);
-
-} else {
-  // Prevent an invalid location from being transmitted
-  utm_data.satellites = 0;
-}
-
-squitter.transmit(&utm_data);
-
+  squitter.transmit(&utm_data);
+  
 }
