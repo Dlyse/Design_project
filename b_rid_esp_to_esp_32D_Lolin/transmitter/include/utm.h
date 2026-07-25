@@ -15,7 +15,7 @@
 #endif
 
 #if not defined(SATS_LEVEL_2)
-#define SATS_LEVEL_2   4//7
+#define SATS_LEVEL_2   7//7
 #endif
 
 #if not defined(SATS_LEVEL_3)
