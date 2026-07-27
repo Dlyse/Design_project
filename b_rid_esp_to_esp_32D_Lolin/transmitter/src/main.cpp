@@ -10,8 +10,8 @@ static struct UTM_data       utm_data;
 
 static TinyGPSPlus gps;
 static HardwareSerial gpsSerial(2);
-static const int GPS_RX_PIN = 16; // GPS TXD connects here
-static const int GPS_TX_PIN = 17; // GPS RXD connects here
+static const int GPS_RX_PIN = 17; // GPS TXD connects here
+static const int GPS_TX_PIN = 16; // GPS RXD connects here
 
 void setup() {
 
@@ -34,11 +34,11 @@ void setup() {
   
   memset(&utm_data,0,sizeof(utm_data));
 
-  utm_data.base_latitude  = 0.0;
-  utm_data.base_longitude = 0.0;//
-  utm_data.base_alt_m     = 0.0;
+  utm_data.base_latitude  = 1.3;
+  utm_data.base_longitude = 103.7;//
+  utm_data.base_alt_m     = 20;
 
-  utm_data.latitude_d  = 0.0;//1.342615
+  utm_data.latitude_d  = 0.0;//1.3
   utm_data.longitude_d = 0.0;//103.717382
   utm_data.alt_msl_m   = 0.0; //mean sea lvl
 
@@ -129,6 +129,9 @@ if (millis() - lastDebug >= 1000) {
 
   Serial.print("Longitude: ");
   Serial.println(utm_data.longitude_d, 6);
+
+  Serial.print("Altitude: ");
+  Serial.println(utm_data.alt_msl_m, 6);
 
   } else {
     // Prevent an invalid location from being transmitted
