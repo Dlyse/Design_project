@@ -7,8 +7,9 @@
 #include <WiFiClientSecure.h>
 
 // config for wifi/server stuff
-const char* WIFI_SSID  = "Rafael's iPhone";
-const char* WIFI_PASS  = "joinhereNOW";
+const char* WIFI_SSID  = "rafael";
+const char* WIFI_PASS  = "joinhere";
+const int WIFI_CHANNEL = 6;
 const char* SERVER_URL = "https://web-production-4b179.up.railway.app/post";
 
 // for data struct
@@ -16,20 +17,48 @@ ODID_UAS_Data uas_data;
 String latest_json_data = "";      // buffer to hold latest set of data
 bool new_data = false;             // flag that triggers upload to server
 
-// this function uploads data to the Railway server
-void upload_data() {
+// Time-slicing variables
+bool uploadInProgress = false;
+unsigned long lastUploadTime = 0;
+const unsigned long UPLOAD_INTERVAL = 1000;  // 1Hz upload frequency
+
+// this function uploads data to the Railway server 
+void upload_data()
+{
+  if (latest_json_data.length() == 0 || uploadInProgress) {
+    return;
+  }
+  
+  uploadInProgress = true;
 
   // turns off sniffing to connect to Wi-Fi for uploading
   esp_wifi_set_promiscuous(false);
+  delay(50);
 
-  // attempts to connect to Wi-Fi, gives up after 20 attempts
-  WiFi.begin(WIFI_SSID, WIFI_PASS);
+  // for trouble shooting
+  WiFi.mode(WIFI_STA);
+
+  // attempts to connect to Wi-Fi, gives up after 40 attempts
+  WiFi.setSleep(false);                 // for iPhone hotspot
+  WiFi.persistent(false);
+  WiFi.begin(WIFI_SSID, WIFI_PASS, WIFI_CHANNEL);
+  
   int attempts = 0;
-  while (WiFi.status() != WL_CONNECTED && attempts < 20)
+  while (WiFi.status() != WL_CONNECTED && attempts < 40)
   {
-    delay(100);
+    delay(500);
     attempts++;
+    Serial.print(".");
+    
+    // If stuck at status 6, force reconnect
+    if (attempts > 10 && WiFi.status() == 6) {
+      Serial.println("\n[Stuck - forcing reconnect]");
+      WiFi.disconnect();
+      delay(300);
+      WiFi.begin(WIFI_SSID, WIFI_PASS, WIFI_CHANNEL);
+    }
   }
+  Serial.println();
 
   // creates a HTTP Client, points towards the Railway URL
   // sends JSON string as POST request
@@ -54,13 +83,23 @@ void upload_data() {
 
   // disconnects from wifi, goes back to regular B-RID sniffing
   WiFi.disconnect(true);
+  WiFi.mode(WIFI_OFF);
+  delay(200);                                         // give radio time to settle
+  esp_wifi_set_mode(WIFI_MODE_NULL);                  // reset wifi mode cleanly
   esp_wifi_set_channel(6, WIFI_SECOND_CHAN_NONE);
+  esp_wifi_set_promiscuous_rx_cb(&sniffer_callback);  // re-register callback
   esp_wifi_set_promiscuous(true);
+  Serial.println("Resumed sniffing...");
+  
+  uploadInProgress = false;
 }
 
 // This callback is called by the ESP32's Wi-Fi Driver every time a packet is captured
-void sniffer_callback(void* buf, wifi_promiscuous_pkt_type_t type) {
-
+void sniffer_callback(void* buf, wifi_promiscuous_pkt_type_t type)
+{
+  // trouble shooting
+  Serial.println("fake packet (not B-RID la)");
+  
   // ignore anything that isn't a Management Packet (which is what B-RID uses)
   if (type != WIFI_PKT_MGMT) return;
 
@@ -116,6 +155,7 @@ void sniffer_callback(void* buf, wifi_promiscuous_pkt_type_t type) {
 }
 
 void setup() {
+  nvs_flash_erase();
   Serial.begin(115200);
 
   // struct for data
@@ -149,10 +189,17 @@ void setup() {
 void loop() {
   
   // if any new data is detected, upload to server
-  if (new_data)
+  if (new_data && !uploadInProgress)
   {
     new_data = false;
-    upload_data();
+    
+    // limits to prevent too frequent uploading
+    if (millis() - lastUploadTime > UPLOAD_INTERVAL) {
+      lastUploadTime = millis();
+      upload_data();
+    } else {
+      Serial.println("Data queued (rate limiting)");
+    }
   }
 
   // check if connected to correct Wi-Fi network (in this case my hotspot) for server upload
