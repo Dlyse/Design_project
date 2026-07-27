@@ -155,5 +155,27 @@ void loop() {
     upload_data();
   }
 
+  // check if connected to correct Wi-Fi network (in this case my hotspot) for server upload
+  if (WiFi.status() == WL_CONNECTED)
+  {
+    // check if the active connection matches your specific hotspot
+    if (String(WiFi.SSID()) == WIFI_SSID)
+    {
+      Serial.println("Connected to the specific target hotspot!");
+    }
+    
+    else
+    {
+      Serial.print("Connected to a different network: ");
+      Serial.println(WiFi.SSID());
+    }
+    
+  }
+  
+  else
+  {
+    Serial.println("Not connected to any Wi-Fi network.");
+  }
+
   delay(100);
 }
