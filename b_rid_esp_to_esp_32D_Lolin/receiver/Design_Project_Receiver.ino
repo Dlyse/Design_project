@@ -9,7 +9,6 @@
 // config for wifi/server stuff
 const char* WIFI_SSID  = "rafael";
 const char* WIFI_PASS  = "joinhere";
-const int WIFI_CHANNEL = 6;
 const char* SERVER_URL = "https://web-production-4b179.up.railway.app/post";
 
 // for data struct
@@ -41,7 +40,7 @@ void upload_data()
   // attempts to connect to Wi-Fi, gives up after 40 attempts
   WiFi.setSleep(false);                 // for iPhone hotspot
   WiFi.persistent(false);
-  WiFi.begin(WIFI_SSID, WIFI_PASS, WIFI_CHANNEL);
+  WiFi.begin(WIFI_SSID, WIFI_PASS);
   
   int attempts = 0;
   while (WiFi.status() != WL_CONNECTED && attempts < 40)
@@ -55,7 +54,7 @@ void upload_data()
       Serial.println("\n[Stuck - forcing reconnect]");
       WiFi.disconnect();
       delay(300);
-      WiFi.begin(WIFI_SSID, WIFI_PASS, WIFI_CHANNEL);
+      WiFi.begin(WIFI_SSID, WIFI_PASS);
     }
   }
   Serial.println();
@@ -96,10 +95,7 @@ void upload_data()
 
 // This callback is called by the ESP32's Wi-Fi Driver every time a packet is captured
 void sniffer_callback(void* buf, wifi_promiscuous_pkt_type_t type)
-{
-  // trouble shooting
-  Serial.println("fake packet (not B-RID la)");
-  
+{  
   // ignore anything that isn't a Management Packet (which is what B-RID uses)
   if (type != WIFI_PKT_MGMT) return;
 
@@ -135,7 +131,7 @@ void sniffer_callback(void* buf, wifi_promiscuous_pkt_type_t type)
       ODID_MessagePack_encoded* pack = (ODID_MessagePack_encoded*) odid_payload;
       int result = decodeMessagePack(&uas_data, pack);
 
-      if (result == ODID_SUCCESS && uas_data.LocationValid == 1)
+      if (result == ODID_SUCCESS)
       {
         // Build JSON from decoded packets
         latest_json_data  = "{\"id\":\"" + String(uas_data.OperatorID.OperatorId) + "\"";
