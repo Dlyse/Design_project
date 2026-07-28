@@ -34,9 +34,9 @@ void setup() {
   
   memset(&utm_data,0,sizeof(utm_data));
 
-  utm_data.base_latitude  = 1.3;
-  utm_data.base_longitude = 103.7;//
-  utm_data.base_alt_m     = 20;
+  utm_data.base_latitude  = 0.0;
+  utm_data.base_longitude = 0.0;//
+  utm_data.base_alt_m     = 0.0;
 
   utm_data.latitude_d  = 0.0;//1.3
   utm_data.longitude_d = 0.0;//103.717382
