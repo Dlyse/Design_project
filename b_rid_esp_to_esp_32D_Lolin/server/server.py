@@ -1,7 +1,59 @@
 import json                                                         # parses JSON strings into dictionaries
+import math                                                         # for buffer distance calculations
 from flask import Flask, jsonify, render_template_string, request   # Flask is the web framework, jsonify converts dicts to JSON response, render_template_string allows direct HTML writing in the python file
 
 app = Flask(__name__)
+
+############################################################ ROUTE DEFINITION ############################################################
+
+# here is a collection of predefined GPS waypoints along the planned delivery route
+# format is latitude then longitude
+ROUTE = [
+    (1.3322723838302757, 103.7769543756633), 
+    (1.3323056379195635, 103.77696042349615), 
+    (1.3323524959537192, 103.77696042349615), 
+    (1.3324114463825143, 103.77694983978864), 
+    (1.332446212019359, 103.77694227999754), 
+    (1.3325172548409232, 103.77695588762151), 
+    (1.3325701590684227, 103.77695588762151), 
+    (1.332600390055053, 103.77695588762151), 
+    (1.3326457365342985, 103.77696042349615), 
+    (1.332678990618561, 103.77696647132905), 
+    (1.332710733153117, 103.77696193545438), 
+    (1.3327591027287864, 103.7769710072037), 
+    (1.3328165415986508, 103.77696798328725)
+]
+
+# drone should stay within 5m of the route at all times
+BUFFER_METERS = 20
+
+# calculates straight-line distance in metres between two GPS coordinates using flat geometry approximation (Pythagorean theorem on a plane)
+# Assumes coordinates are in degrees and converts to meters using a simple scale factor
+def distance_meters(lat1, lon1, lat2, lon2):
+    # Approximate conversion: 1 degree of latitude ≈ 111,320 meters
+    # 1 degree of longitude ≈ 111,320 * cos(latitude) meters
+    # Using the average latitude for better accuracy
+    avg_lat = (lat1 + lat2) / 2
+    lat_scale = 111320  # meters per degree of latitude
+    lon_scale = 111320 * math.cos(math.radians(avg_lat))  # meters per degree of longitude
+    
+    # Calculate differences in degrees
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+    
+    # Convert to meters
+    dx = dlon * lon_scale
+    dy = dlat * lat_scale
+    
+    # Euclidean distance (Pythagorean theorem)
+    return math.sqrt(dx**2 + dy**2)
+
+# checks if the drone's current position is within the buffer zone of any route waypoint, returns Boolean
+def is_on_route(lat, lon):
+    return any(distance_meters(lat, lon, rlat, rlon) < BUFFER_METERS
+               for rlat, rlon in ROUTE)
+
+########################################################### DATA STORAGE ###########################################################
 
 # dictonary to hold most recent drone data, initialise with placeholder values
 latest_data = {
@@ -10,6 +62,7 @@ latest_data = {
     "lon": 0,               # longitude
     "alt": 0,               # altitude
     "rssi": 0,              # Received Signal Strength Indicator
+    "on_route": True,       # whether or not the drone is correctly following its course
 }
 
 ########################################################### HTML DASHBOARD ###########################################################
@@ -42,6 +95,13 @@ DASHBOARD = """
     <div class="field"><span class="label">Altitude:</span> {{ data.alt }} m</div>
     <div class="field"><span class="label">RSSI:</span> {{ data.rssi }} dBm</div>
   </div>
+
+  {% if data.on_route %}
+  <div class="ok"> Drone is on course</div>
+  {% else %}
+  <div class="warning">WARNING: Drone has exited route corridor!</div>
+  {% endif %}
+  
 </body>
 </html>
 """
