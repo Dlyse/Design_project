@@ -13,6 +13,8 @@ static HardwareSerial gpsSerial(2);
 static const int GPS_RX_PIN = 17; // GPS TXD connects here
 static const int GPS_TX_PIN = 16; // GPS RXD connects here
 
+//float i = 0.0;
+
 void setup() {
 
   Serial.begin(115200);
@@ -38,7 +40,7 @@ void setup() {
   utm_data.base_longitude = 0.0;//
   utm_data.base_alt_m     = 0.0;
 
-  utm_data.latitude_d  = 0.0;//1.3
+  utm_data.latitude_d  = 0.0;//1.3 or i
   utm_data.longitude_d = 0.0;//103.717382
   utm_data.alt_msl_m   = 0.0; //mean sea lvl
 
@@ -55,11 +57,12 @@ void loop() {
 
   while (gpsSerial.available() > 0) {
     char c = gpsSerial.read();
-    Serial.write(c);
+    //Serial.write(c);
     gps.encode(c);
   }
   static unsigned long lastDebug = 0;
 
+/*
 if (millis() - lastDebug >= 1000) {
   lastDebug = millis();
 
@@ -80,7 +83,7 @@ if (millis() - lastDebug >= 1000) {
 
   Serial.println("----------------");
 }
-
+*/
 
 
   if (gps.location.isValid() && gps.location.age() < 2000) {
@@ -121,22 +124,24 @@ if (millis() - lastDebug >= 1000) {
     // Height above take-off point
     utm_data.alt_agl_m =
         utm_data.alt_msl_m - utm_data.base_alt_m;
-  Serial.print("Satellites: ");
-  Serial.println(utm_data.satellites);
+  // Serial.print("Satellites: ");
+  // Serial.println(utm_data.satellites);
 
-  Serial.print("Latitude: ");
-  Serial.println(utm_data.latitude_d, 6);
+  // Serial.print("Latitude: ");
+  // Serial.println(utm_data.latitude_d, 6);
 
-  Serial.print("Longitude: ");
-  Serial.println(utm_data.longitude_d, 6);
+  // Serial.print("Longitude: ");
+  // Serial.println(utm_data.longitude_d, 6);
 
-  Serial.print("Altitude: ");
-  Serial.println(utm_data.alt_msl_m, 6);
+  // Serial.print("Altitude: ");
+  // Serial.println(utm_data.alt_msl_m, 6);
 
   } else {
     // Prevent an invalid location from being transmitted
-    utm_data.satellites = 0;
+    utm_data.satellites = 0;//change to
   }
 
   squitter.transmit(&utm_data);
+  // i+=0.0001;
+  // utm_data.latitude_d = i;
 }
