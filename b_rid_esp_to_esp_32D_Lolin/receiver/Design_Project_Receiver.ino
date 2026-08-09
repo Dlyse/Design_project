@@ -3,94 +3,324 @@
 #include "nvs_flash.h"
 #include "src/opendroneid.h"
 #include <WiFi.h>
-#include <HTTPClient.h>
-#include <WiFiClientSecure.h>
+#include <WebServer.h>
 
 // config for wifi/server stuff
 const char* WIFI_SSID  = "rafael";
 const char* WIFI_PASS  = "joinhere";
-const char* SERVER_URL = "https://web-production-4b179.up.railway.app/post";
+WebServer server(80);
 
 // for data struct
 ODID_UAS_Data uas_data;
 String latest_json_data = "";      // buffer to hold latest set of data
 bool new_data = false;             // flag that triggers upload to server
 
-// Time-slicing variables
-bool uploadInProgress = false;
-unsigned long lastUploadTime = 0;
-const unsigned long UPLOAD_INTERVAL = 1000;  // 1Hz upload frequency
-
-// this function uploads data to the Railway server 
-void upload_data()
+void handleRoot()
 {
-  if (latest_json_data.length() == 0 || uploadInProgress) {
-    return;
-  }
-  
-  uploadInProgress = true;
+  String html = R"rawliteral(
+<!DOCTYPE html>
+<html>
 
-  // turns off sniffing to connect to Wi-Fi for uploading
-  esp_wifi_set_promiscuous(false);
-  delay(50);
+<head>
 
-  // for trouble shooting
-  WiFi.mode(WIFI_STA);
+<link rel="stylesheet"
+href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 
-  // attempts to connect to Wi-Fi, gives up after 40 attempts
-  WiFi.setSleep(false);                 // for iPhone hotspot
-  WiFi.persistent(false);
-  WiFi.begin(WIFI_SSID, WIFI_PASS);
-  
-  int attempts = 0;
-  while (WiFi.status() != WL_CONNECTED && attempts < 40)
-  {
-    delay(500);
-    attempts++;
-    Serial.print(".");
-    
-    // If stuck at status 6, force reconnect
-    if (attempts > 10 && WiFi.status() == 6) {
-      Serial.println("\n[Stuck - forcing reconnect]");
-      WiFi.disconnect();
-      delay(300);
-      WiFi.begin(WIFI_SSID, WIFI_PASS);
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<meta charset="utf-8">
+
+<title>ESP32 Drone Receiver</title>
+
+<style>
+
+body{
+    font-family:Arial;
+    background:#f4f4f4;
+    margin:30px;
+}
+
+.card{
+    background:white;
+    padding:20px;
+    width:420px;
+    border-radius:10px;
+    box-shadow:0px 2px 8px rgba(0,0,0,0.2);
+}
+
+table{
+    width:100%;
+}
+
+td{
+    padding:6px;
+}
+
+.label{
+    font-weight:bold;
+}
+
+.online{
+    color:green;
+}
+
+.offline{
+    color:red;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="card">
+
+<h2>ESP32 Drone Receiver</h2>
+
+<p id="status" class="offline">Waiting for drone...</p>
+
+<div id="map" style="height:400px;"></div>
+
+<table>
+
+<tr><td class="label">Operator ID</td><td id="id">-</td></tr>
+<tr><td class="label">Latitude</td><td id="lat">-</td></tr>
+<tr><td class="label">Longitude</td><td id="lon">-</td></tr>
+<tr><td class="label">Altitude</td><td id="alt">-</td></tr>
+<tr><td class="label">RSSI</td><td id="rssi">-</td></tr>
+
+<tr>
+    <td class="label">Distance from Route</td>
+    <td id="distance">-</td>
+</tr>
+<tr>
+    <td class="label">Status</td>
+    <td id="warning">Within Route</td>
+</tr>
+
+</table>
+
+</div>
+
+<script>
+
+var flightLog = [];
+var lastLogTime = 0;
+
+var map = L.map('map').setView([1.3521,103.8198],16);
+
+L.tileLayer(
+'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+{
+    attribution:'© OpenStreetMap'
+}).addTo(map);
+
+var drone = L.circleMarker(
+    [1.3521,103.8198],
+    {
+        radius: 8,
+        color: "red",
+        fillColor: "red",
+        fillOpacity: 1
     }
-  }
-  Serial.println();
+).addTo(map);
 
-  // creates a HTTP Client, points towards the Railway URL
-  // sends JSON string as POST request
-  // prints response code for debugging (it should be '200' as per the server.py code)
-  if (WiFi.status() == WL_CONNECTED)
-  {
-    WiFiClientSecure client;
-    client.setInsecure();
-    HTTPClient http;
-    http.begin(client, SERVER_URL);
-    
-    http.addHeader("Content-Type", "application/json");
-    int responseCode = http.POST(latest_json_data);
-    Serial.print("POST response: ");
-    Serial.println(responseCode);
-    http.end();
-  }
-  else
-  {
-    Serial.println("Wi-Fi connection failed");
-  }
+var droneTrail = [];
 
-  // disconnects from wifi, goes back to regular B-RID sniffing
-  WiFi.disconnect(true);
-  WiFi.mode(WIFI_OFF);
-  delay(200);                                         // give radio time to settle
-  esp_wifi_set_mode(WIFI_MODE_NULL);                  // reset wifi mode cleanly
-  esp_wifi_set_channel(6, WIFI_SECOND_CHAN_NONE);
-  esp_wifi_set_promiscuous_rx_cb(&sniffer_callback);  // re-register callback
-  esp_wifi_set_promiscuous(true);
-  Serial.println("Resumed sniffing...");
-  
-  uploadInProgress = false;
+var trail = L.polyline([], {
+    color: "red",
+    weight: 3, 
+    opacity: 0.8
+}).addTo(map);
+
+// START
+const start = [1.3322723838302757, 103.7769543756633];
+
+// END
+const end = [1.3328165415986508, 103.77696798328725];
+
+// distance threshold
+const THRESHOLD = 5;
+
+var route = L.polyline(
+    [start,end],
+    {
+        color:"blue",
+        weight:4
+    }
+).addTo(map);
+
+L.circleMarker(start,{
+    radius:6,
+    color:"green",
+    fillColor:"green",
+    fillOpacity:1
+}).addTo(map);
+
+L.circleMarker(end,{
+    radius:6,
+    color:"red",
+    fillColor:"red",
+    fillOpacity:1
+}).addTo(map);
+
+const tube = L.polyline(
+    [start, end],
+    {
+        color: "green",
+        weight: 20,
+        opacity: 0.25
+    }
+).addTo(map);
+
+// ================================
+// Distance from route calculation
+// ================================
+
+const startLat = start[0];
+const startLon = start[1];
+            
+const endLat = end[0];
+const endLon = end[1];
+
+async function updateData()
+{
+    try
+    {
+        const response = await fetch("/data");
+        const data = await response.json();
+
+        if(data.status)
+        {
+            document.getElementById("status").innerHTML="Waiting for drone...";            
+            document.getElementById("status").className="offline";
+            return;
+        }
+
+        if(data.lat != 0 && data.lon != 0)
+        {
+            if (droneTrail.length == 0 || map.distance(droneTrail[droneTrail.length - 1], [data.lat, data.lon]) > 5)
+            {
+                droneTrail.push([data.lat, data.lon]);
+            
+                if (droneTrail.length > 50)
+                {
+                    droneTrail.shift();
+                }
+            
+                trail.setLatLngs(droneTrail);
+            }
+            drone.setLatLng([data.lat, data.lon]);
+            map.setView([data.lat, data.lon], map.getZoom(), {
+                animate: true
+}           );
+
+            const droneLat = data.lat;
+            const droneLon = data.lon;
+                        
+            // Projection factor
+            const dx = endLon - startLon;
+            const dy = endLat - startLat;
+                        
+            let t =
+            (
+                (droneLon-startLon)*dx
+                +
+                (droneLat-startLat)*dy
+            )
+            /
+            (
+                dx*dx + dy*dy
+            );
+            
+            // Clamp to the route segment
+            t = Math.max(0, Math.min(1, t));
+                        
+            // Closest point on line
+            const projLat = startLat + t*dy;
+            const projLon = startLon + t*dx;
+
+            const distanceMeters = Math.sqrt(
+                Math.pow((droneLat - projLat) * 111320, 2) +
+                Math.pow((droneLon - projLon) * 111320 * Math.cos(droneLat * Math.PI / 180), 2)
+            );
+
+            const now = Date.now();
+
+            if (now - lastLogTime >= 1000)
+            {           
+                flightLog.push({
+                    time: new Date().toLocaleTimeString(),
+                    distance: distanceMeters.toFixed(2)
+                });
+
+                console.table(flightLog);
+                lastLogTime = now;
+            }
+            document.getElementById("distance").innerHTML = distanceMeters.toFixed(2) + " m";
+            if (distanceMeters > THRESHOLD)
+            {
+                document.getElementById("warning").innerHTML = "⚠ Outside Allowed Route";
+            
+                drone.setStyle({
+                    color: "orange",
+                    fillColor: "orange"
+                });
+            }
+            else
+            {
+                document.getElementById("warning").innerHTML =
+                    "Within Route";
+            
+                drone.setStyle({
+                    color: "red",
+                    fillColor: "red"
+                });
+            }
+        }
+
+        document.getElementById("status").innerHTML="Receiving";
+        document.getElementById("status").className="online";
+
+        document.getElementById("id").innerHTML=data.id;
+        document.getElementById("lat").innerHTML=data.lat;
+        document.getElementById("lon").innerHTML=data.lon;
+        document.getElementById("alt").innerHTML=data.alt+" m";
+        document.getElementById("rssi").innerHTML=data.rssi+" dBm";
+    }
+    catch(e)
+    {
+        document.getElementById("status").innerHTML="Disconnected";
+        document.getElementById("status").className="offline";
+    }
+}
+
+setInterval(updateData,500);
+
+updateData();
+
+</script>
+
+</body>
+
+</html>
+)rawliteral";
+
+  server.send(200,"text/html",html);
+}
+
+void handleData()
+{
+    if (latest_json_data.length() == 0)
+    {
+        server.send(200, "application/json",
+                    "{\"status\":\"waiting_for_drone\"}");
+    }
+    else
+    {
+        server.send(200, "application/json", latest_json_data);
+    }
 }
 
 // This callback is called by the ESP32's Wi-Fi Driver every time a packet is captured
@@ -133,6 +363,12 @@ void sniffer_callback(void* buf, wifi_promiscuous_pkt_type_t type)
 
       if (result == ODID_SUCCESS)
       {
+
+        String opID = String(uas_data.OperatorID.OperatorId);
+
+        if (opID.length() == 0)
+          return;
+          
         // Build JSON from decoded packets
         latest_json_data  = "{\"id\":\"" + String(uas_data.OperatorID.OperatorId) + "\"";
         latest_json_data += ",\"lat\":"  + String(uas_data.Location.Latitude, 7);
@@ -150,75 +386,83 @@ void sniffer_callback(void* buf, wifi_promiscuous_pkt_type_t type)
   }
 }
 
-void setup() {
-  nvs_flash_erase();
-  Serial.begin(115200);
+void setup()
+{
+    Serial.begin(115200);
 
-  // struct for data
-  odid_initUasData(&uas_data);
+    odid_initUasData(&uas_data);
 
-  // initialising: Internal ESP32 Flash Memory, Network Interfaces, and Event Loop for background tasks
-  nvs_flash_init();
-  esp_netif_init();
-  esp_event_loop_create_default();
+    nvs_flash_init();
 
-  // Creates default Wi-Fi config and initialise Wi-Fi driver
-  // WIFI_INIT_CONFIG_DEFAULT() is a macro that auto-fills the normal settings
-  wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-  esp_wifi_init(&cfg);
+    WiFi.mode(WIFI_STA);
+    WiFi.setSleep(false);
 
-  // Starts on the Wi-Fi Radio as null, meaning no active connection, just sorta sitting there frfr
-  esp_wifi_set_mode(WIFI_MODE_NULL);
-  esp_wifi_start();
+    WiFi.begin(WIFI_SSID, WIFI_PASS);
 
-  // Lock onto only channel 6 (default B-RID Neighbour Awareness Networking [NAN] channel)
-  esp_wifi_set_channel(6, WIFI_SECOND_CHAN_NONE);
+    Serial.print("Connecting");
 
-  // Register callback function: Runs whenever a packet is captured.
-  // Also enable promiscuous mode.
-  esp_wifi_set_promiscuous_rx_cb(&sniffer_callback);
-  esp_wifi_set_promiscuous(true);
+    while (WiFi.status() != WL_CONNECTED)
+    {
+        delay(500);
+        Serial.print(".");
+    }
 
-  Serial.println("Sniffing started on channel 6...");
+    Serial.println();
+    Serial.println("Connected!");
+
+    Serial.print("IP: ");
+    Serial.println(WiFi.localIP());
+
+    Serial.print("Channel: ");
+    Serial.println(WiFi.channel());
+
+    server.on("/", handleRoot);
+    server.on("/data", handleData);
+
+    server.begin();
+    Serial.print("Open browser: http://");
+    Serial.println(WiFi.localIP());
+
+    latest_json_data = "";
+
+    Serial.println("HTTP server started");
+
+    // ---------- TEST ----------
+    // DO NOT reinitialise WiFi.
+    // just ask for promiscuous mode.
+
+    esp_wifi_set_promiscuous_rx_cb(&sniffer_callback);
+    Serial.println("Promiscuous callback registered");
+    esp_err_t err = esp_wifi_set_promiscuous(true);
+
+    Serial.print("Promiscuous enable result: ");
+    Serial.println(err == ESP_OK ? "OK" : "FAILED");
 }
 
-void loop() {
-  
-  // if any new data is detected, upload to server
-  if (new_data && !uploadInProgress)
-  {
-    new_data = false;
-    
-    // limits to prevent too frequent uploading
-    if (millis() - lastUploadTime > UPLOAD_INTERVAL) {
-      lastUploadTime = millis();
-      upload_data();
-    } else {
-      Serial.println("Data queued (rate limiting)");
-    }
-  }
+void loop()
+{
+    server.handleClient();
 
-  // check if connected to correct Wi-Fi network (in this case my hotspot) for server upload
-  if (WiFi.status() == WL_CONNECTED)
-  {
-    // check if the active connection matches your specific hotspot
-    if (String(WiFi.SSID()) == WIFI_SSID)
-    {
-      Serial.println("Connected to the specific target hotspot!");
-    }
-    
-    else
-    {
-      Serial.print("Connected to a different network: ");
-      Serial.println(WiFi.SSID());
-    }
-    
-  }
-  
-  else
-  {
-    Serial.println("Not connected to any Wi-Fi network.");
-  }
+    static unsigned long lastPrint = 0;
 
-  delay(100);
+    if (new_data)
+    {
+        new_data = false;
+
+        Serial.println();
+        Serial.println("========== B-RID PACKET ==========");
+        Serial.println(latest_json_data);
+        Serial.println("==================================");
+    }
+
+    if (millis() - lastPrint > 5000)
+    {
+        lastPrint = millis();
+
+        Serial.print("Connected: ");
+        Serial.println(WiFi.status() == WL_CONNECTED);
+
+        Serial.print("IP: ");
+        Serial.println(WiFi.localIP());
+    }
 }
