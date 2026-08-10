@@ -60,9 +60,9 @@ void loop() {
     //Serial.write(c);
     gps.encode(c);
   }
-  static unsigned long lastDebug = 0;
+ /* static unsigned long lastDebug = 0;
 
-/*
+
 if (millis() - lastDebug >= 1000) {
   lastDebug = millis();
 
